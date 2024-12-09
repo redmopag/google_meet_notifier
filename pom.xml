@@ -41,5 +41,10 @@
             <groupId>com.google.oauth-client</groupId>
             <artifactId>google-oauth-client-jetty</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-workspaceevents</artifactId>
+        </dependency>
     </dependencies>
 </project>
