@@ -46,5 +46,10 @@
             <groupId>com.google.cloud</groupId>
             <artifactId>google-cloud-workspaceevents</artifactId>
         </dependency>
+
+        <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>google-cloud-pubsub</artifactId>
+        </dependency>
     </dependencies>
 </project>
