@@ -12,13 +12,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URL;
-import java.util.Collections;
 import java.util.List;
 
 public class CredentialsSettings {
     private static final String TOKENS_DIRECTORY = "tokens";
-    private static final List<String> SCOPES = Collections.singletonList(
-            "https://www.googleapis.com/auth/meetings.space.created"
+    private static final List<String> SCOPES = List.of(
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly",
+            "https://www.googleapis.com/auth/pubsub"
     );
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
     private static final String USER = "me";
@@ -35,7 +36,7 @@ public class CredentialsSettings {
             ClientId clientId = ClientId.fromStream(in);
 
             // Авторизация пользователя
-            UserAuthorizer userAuthorizer = UserAuthorizer.newBuilder()
+            return UserAuthorizer.newBuilder()
                     .setClientId(clientId)
                     .setCallbackUri(callbackUri)
                     .setScopes(SCOPES)
@@ -47,8 +48,6 @@ public class CredentialsSettings {
                     })
                     .setTokenStore(TOKEN_STORE)
                     .build();
-
-            return userAuthorizer;
         }
     }
 
