@@ -34,14 +34,14 @@ public class EventSubscriber {
                 .build();
     }
 
-    public Subscription subscribe(String targetResource, String topicName) throws IOException, ExecutionException, InterruptedException {
+    public void subscribe(String targetResource, String topicName) throws IOException, ExecutionException, InterruptedException {
         try (SubscriptionsServiceClient subscriptionsServiceClient = SubscriptionsServiceClient.create(settings)) {
             Subscription subscription = createSubscription(targetResource, topicName);
             CreateSubscriptionRequest request = CreateSubscriptionRequest.newBuilder()
                     .setSubscription(subscription)
                     .build();
 
-            return subscriptionsServiceClient.createSubscriptionAsync(request).get();
+            subscriptionsServiceClient.createSubscriptionAsync(request).get();
         }
     }
 }

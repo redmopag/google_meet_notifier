@@ -40,8 +40,9 @@ public class ParticipantJoinedHandler implements EventHandler {
             }
 
             trayIcon.displayMessage("Уведомление Google Meet",
-                    displayName + "присоединился к конеференции",
+                    displayName + " присоединился к конеференции",
                     TrayIcon.MessageType.INFO);
+            tray.remove(trayIcon);
         } else {
             System.out.println("SystemTray not supported");
         }

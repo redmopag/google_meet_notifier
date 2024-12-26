@@ -15,6 +15,7 @@ public class SubscriptionListener {
     private final static HashMap<String, EventHandler> HANDLERS = new HashMap<>();
 
     private final Credentials credentials;
+    private Subscriber subscriber;
 
     public SubscriptionListener(Credentials credentials) {
         this.credentials = credentials;
@@ -25,15 +26,19 @@ public class SubscriptionListener {
     public void listenSubscriptionAsync(String projectId, String subscriptionId) {
         ProjectSubscriptionName subscriptionName =
                 ProjectSubscriptionName.of(projectId, subscriptionId);
-        Subscriber subscriber = Subscriber.newBuilder(subscriptionName, getReceiver())
+        subscriber = Subscriber.newBuilder(subscriptionName, getReceiver())
                 .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
                 .build();
 
         // Start thr subscriber
         subscriber.startAsync().awaitRunning();
         System.out.println("Listening for messages on: " + subscriptionName);
+    }
 
-        subscriber.awaitTerminated();
+    public void stopListeningSubscription() {
+        if (subscriber != null) {
+            subscriber.stopAsync();
+        }
     }
 
     private MessageReceiver getReceiver() {
