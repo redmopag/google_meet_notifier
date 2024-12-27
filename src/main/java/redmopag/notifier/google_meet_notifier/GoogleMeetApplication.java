@@ -6,7 +6,6 @@ import com.google.auth.Credentials;
 import com.google.auth.oauth2.TokenStore;
 import redmopag.notifier.google_meet_notifier.googleapi.SpaceServiceApi;
 import redmopag.notifier.google_meet_notifier.services.*;
-import redmopag.notifier.google_meet_notifier.storage.TargetResource;
 import redmopag.notifier.google_meet_notifier.storage.TokenStoreImpl;
 import redmopag.notifier.google_meet_notifier.utils.CredentialsSettings;
 import redmopag.notifier.google_meet_notifier.storage.TargetResourceStore;
@@ -56,9 +55,9 @@ public class GoogleMeetApplication {
                 eventSubscriber.subscribe(targetResource, TOPIC_NAME);
                 subscriptionListener.listenSubscriptionAsync(PROJECT_ID, SUBSCRIPTION_ID);
 
-                choice = getUserChoice();
+                choice = getUserChoice(scanner);
                 if (choice.equals("c")) { // Возможность сменить конференцию
-                    System.out.println("Введите ссылку на новую конференцию: ");
+                    System.out.print("Введите ссылку на новую конференцию: ");
                     targetResource = targetResourceStore.saveTargetResource(scanner.nextLine());
                     subscriptionListener.stopListeningSubscription();
                 }
@@ -93,19 +92,14 @@ public class GoogleMeetApplication {
         return new SubscriptionListener(credentials, handlers);
     }
 
-    private static String getUserChoice() {
-        try (Scanner scanner = new Scanner(System.in)) {
-            String choice;
-            do {
-                System.out.print("Нажмите " + CHANGE_CONFERENCE + " - изменить конференцию,"
-                        + EXIT + " - выйти: ");
-                choice = scanner.next();
-                if (!choice.equals("c") && !choice.equals("q")) {
-                    break;
-                }
-            } while (true);
+    private static String getUserChoice(Scanner scanner) {
+        String choice;
+        do {
+            System.out.print("Нажмите " + CHANGE_CONFERENCE + " - изменить конференцию, "
+                    + EXIT + " - выйти: ");
+            choice = scanner.nextLine();
+        } while (!choice.equals("c") && !choice.equals("q"));
 
-            return choice;
-        }
+        return choice;
     }
 }
