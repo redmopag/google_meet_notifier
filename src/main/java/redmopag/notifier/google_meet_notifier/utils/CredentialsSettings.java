@@ -4,6 +4,7 @@ import com.google.api.client.extensions.jetty.auth.oauth2.LocalServerReceiver;
 import com.google.auth.Credentials;
 import com.google.auth.oauth2.ClientId;
 import com.google.auth.oauth2.DefaultPKCEProvider;
+import com.google.auth.oauth2.TokenStore;
 import com.google.auth.oauth2.UserAuthorizer;
 
 import java.awt.*;
@@ -15,21 +16,21 @@ import java.net.URL;
 import java.util.List;
 
 public class CredentialsSettings {
-    private static final String TOKENS_DIRECTORY = "tokens";
-    private static final List<String> SCOPES = List.of(
-            "https://www.googleapis.com/auth/meetings.space.created",
-            "https://www.googleapis.com/auth/meetings.space.readonly",
-            "https://www.googleapis.com/auth/pubsub"
-    );
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
     private static final String USER = "me";
 
-    private static final TokenStoreImpl TOKEN_STORE = new TokenStoreImpl(TOKENS_DIRECTORY);
+    private final List<String> scopes;
+    private final TokenStore tokenStore;
+
+    public CredentialsSettings(TokenStore tokenStore, List<String> scopes) {
+        this.tokenStore = tokenStore;
+        this.scopes = scopes;
+    }
 
     private UserAuthorizer getUserAuthorizer(URI callbackUri) throws IOException {
         // Считывание полномочий (авторизованных или нет)
-        try(InputStream in = CredentialsSettings.class.getResourceAsStream(CREDENTIALS_FILE_PATH)) {
-            if(in == null) {
+        try (InputStream in = CredentialsSettings.class.getResourceAsStream(CREDENTIALS_FILE_PATH)) {
+            if (in == null) {
                 throw new FileNotFoundException("Resource not found: " + CREDENTIALS_FILE_PATH);
             }
 
@@ -39,14 +40,14 @@ public class CredentialsSettings {
             return UserAuthorizer.newBuilder()
                     .setClientId(clientId)
                     .setCallbackUri(callbackUri)
-                    .setScopes(SCOPES)
+                    .setScopes(scopes)
                     .setPKCEProvider(new DefaultPKCEProvider() {
                         @Override
                         public String getCodeChallenge() {
                             return super.getCodeChallenge().split("=")[0];
                         }
                     })
-                    .setTokenStore(TOKEN_STORE)
+                    .setTokenStore(tokenStore)
                     .build();
         }
     }
@@ -61,18 +62,18 @@ public class CredentialsSettings {
 
             // Получаем полномочия
             Credentials credentials = userAuthorizer.getCredentials(USER);
-            if(credentials != null) {
+            if (credentials != null) {
                 return credentials;
             }
 
             // Если полномочия не авторизованы, то их нужно авторизовать. Вернуться токены на указанный путь
             URL authorizationUrl = userAuthorizer.getAuthorizationUrl(USER, "", null);
-            if(Desktop.isDesktopSupported() &&
+            if (Desktop.isDesktopSupported() &&
                     Desktop.getDesktop().isSupported(Desktop.Action.BROWSE)) {
                 Desktop.getDesktop().browse(authorizationUrl.toURI());
             } else {
                 System.out.printf("Open the following URL to authorize access: %s\n",
-                authorizationUrl.toExternalForm());
+                        authorizationUrl.toExternalForm());
             }
 
             String code = receiver.waitForCode();

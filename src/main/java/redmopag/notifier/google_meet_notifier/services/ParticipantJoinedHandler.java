@@ -3,69 +3,40 @@ package redmopag.notifier.google_meet_notifier.services;
 import com.google.api.gax.core.FixedCredentialsProvider;
 import com.google.apps.meet.v2.*;
 import com.google.auth.Credentials;
-import com.google.gson.JsonParser;
 import com.google.pubsub.v1.PubsubMessage;
+import redmopag.notifier.google_meet_notifier.googleapi.ConferenceServiceApi;
+import redmopag.notifier.google_meet_notifier.utils.NotificationService;
+import redmopag.notifier.google_meet_notifier.utils.TrayNotificationService;
 
-import java.awt.*;
 import java.io.IOException;
 
 public class ParticipantJoinedHandler implements EventHandler {
-    private final Credentials credentials;
+    private final ConferenceServiceApi conferenceServiceApi;
+    private final NotificationService notificationService;
 
     public ParticipantJoinedHandler(Credentials credentials) {
-        this.credentials = credentials;
+        ConferenceRecordsServiceSettings settings = null;
+        try {
+            settings = ConferenceRecordsServiceSettings.newBuilder()
+                    .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
+                    .build();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        conferenceServiceApi = new ConferenceServiceApi(settings);
+        notificationService = new TrayNotificationService();
     }
 
     @Override
-    public void handle(PubsubMessage message) throws IOException {
-        String participantSessionName = JsonParser.parseString(message.getData().toStringUtf8())
-                .getAsJsonObject()
-                .getAsJsonObject("participantSession")
-                .get("name")
-                .getAsString();
-
-        Participant participant = getParticipant(participantSessionName);
+    public void handle(PubsubMessage message) {
+        Participant participant = conferenceServiceApi.getParticipant(message);
         String displayName = getDisplayName(participant);
 
-        if (SystemTray.isSupported()) {
-            SystemTray tray = SystemTray.getSystemTray();
+        String title = "Google Meet Notifier";
+        String text = displayName + " присоединился к конференции";
 
-            Image image = Toolkit.getDefaultToolkit().getImage(getClass().getResource("/img.png"));
-            TrayIcon trayIcon = new TrayIcon(image);
-
-            try {
-                tray.add(trayIcon);
-            } catch (AWTException e) {
-                throw new RuntimeException(e);
-            }
-
-            trayIcon.displayMessage("Уведомление Google Meet",
-                    displayName + " присоединился к конеференции",
-                    TrayIcon.MessageType.INFO);
-            tray.remove(trayIcon);
-        } else {
-            System.out.println("SystemTray not supported");
-        }
-    }
-
-    private Participant getParticipant(String participantSessionName) throws IOException {
-        ConferenceRecordsServiceSettings settings = ConferenceRecordsServiceSettings.newBuilder()
-                .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
-                .build();
-
-        // ParticipantSession looks like: conferenceRecords/XXX/participants/YYY/participantSessions/ZZZ
-        String[] participantSessionData = participantSessionName.split("/");
-        String conferenceRecord = participantSessionData[1];
-        String participant = participantSessionData[3];
-
-        try (ConferenceRecordsServiceClient client = ConferenceRecordsServiceClient.create(settings)) {
-            ParticipantName participantName = ParticipantName.newBuilder()
-                    .setConferenceRecord(conferenceRecord)
-                    .setParticipant(participant)
-                    .build();
-
-            return client.getParticipant(participantName);
-        }
+        notificationService.notify(title, text);
     }
 
     private String getDisplayName(Participant participant) {

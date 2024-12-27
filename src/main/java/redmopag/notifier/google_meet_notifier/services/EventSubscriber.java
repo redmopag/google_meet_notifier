@@ -8,7 +8,7 @@ import com.google.protobuf.Duration;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-public class EventSubscriber {
+public class EventSubscriber implements Subscriber {
     private final SubscriptionsServiceSettings settings;
 
     public EventSubscriber(Credentials credentials) throws IOException {
@@ -34,7 +34,8 @@ public class EventSubscriber {
                 .build();
     }
 
-    public void subscribe(String targetResource, String topicName) throws IOException, ExecutionException, InterruptedException {
+    @Override
+    public void subscribe(String targetResource, String topicName) throws IOException {
         try (SubscriptionsServiceClient subscriptionsServiceClient = SubscriptionsServiceClient.create(settings)) {
             Subscription subscription = createSubscription(targetResource, topicName);
             CreateSubscriptionRequest request = CreateSubscriptionRequest.newBuilder()
@@ -42,6 +43,12 @@ public class EventSubscriber {
                     .build();
 
             subscriptionsServiceClient.createSubscriptionAsync(request).get();
+            System.out.println("Subscription was created");
+        } catch (ExecutionException e) {
+            System.out.println("Subscription already exists");
+        } catch (InterruptedException e) {
+            System.out.println("Subscribing failed: " + e.getMessage());
+            throw new RuntimeException(e);
         }
     }
 }

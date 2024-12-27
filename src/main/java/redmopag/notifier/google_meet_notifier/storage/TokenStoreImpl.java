@@ -1,4 +1,4 @@
-package redmopag.notifier.google_meet_notifier.utils;
+package redmopag.notifier.google_meet_notifier.storage;
 
 import com.google.auth.oauth2.TokenStore;
 

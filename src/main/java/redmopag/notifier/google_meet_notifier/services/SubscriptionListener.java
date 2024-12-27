@@ -9,49 +9,50 @@ import com.google.pubsub.v1.ProjectSubscriptionName;
 import com.google.pubsub.v1.PubsubMessage;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Map;
 
 public class SubscriptionListener {
-    private final static HashMap<String, EventHandler> HANDLERS = new HashMap<>();
-
+    private final Map<String, EventHandler> handlers;
     private final Credentials credentials;
     private Subscriber subscriber;
 
-    public SubscriptionListener(Credentials credentials) {
+    public SubscriptionListener(Credentials credentials, Map<String, EventHandler> handlers) {
         this.credentials = credentials;
-        HANDLERS.put("google.workspace.meet.participant.v2.joined",
-                new ParticipantJoinedHandler(credentials));
+        this.handlers = handlers;
     }
 
     public void listenSubscriptionAsync(String projectId, String subscriptionId) {
-        ProjectSubscriptionName subscriptionName =
-                ProjectSubscriptionName.of(projectId, subscriptionId);
-        subscriber = Subscriber.newBuilder(subscriptionName, getReceiver())
-                .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
-                .build();
-
+        subscriber = getSubscriber(projectId, subscriptionId);
         // Start thr subscriber
         subscriber.startAsync().awaitRunning();
-        System.out.println("Listening for messages on: " + subscriptionName);
+        System.out.println("Listening for messages");
+    }
+
+    private Subscriber getSubscriber(String projectId, String subscriptionId) {
+        ProjectSubscriptionName subscriptionName =
+                ProjectSubscriptionName.of(projectId, subscriptionId);
+        return Subscriber.newBuilder(subscriptionName, getReceiver())
+                .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
+                .build();
+    }
+
+    private MessageReceiver getReceiver() {
+        return (PubsubMessage message, AckReplyConsumer consumer) -> {
+            try {
+                if (handlers.containsKey(message.getAttributesMap().get("ce-type"))) {
+                    handlers.get(message.getAttributesMap().get("ce-type")).handle(message);
+                }
+            } catch (IOException e) {
+                System.out.println("Не удалось обработать событие: " + e.getMessage());
+            }
+
+            consumer.ack(); // Сообщаем, что сообщение получено
+        };
     }
 
     public void stopListeningSubscription() {
         if (subscriber != null) {
             subscriber.stopAsync();
         }
-    }
-
-    private MessageReceiver getReceiver() {
-        return (PubsubMessage message, AckReplyConsumer consumer) -> {
-            try {
-                if (HANDLERS.containsKey(message.getAttributesMap().get("ce-type"))) {
-                    HANDLERS.get(message.getAttributesMap().get("ce-type")).handle(message);
-                }
-            } catch (IOException e) {
-                System.out.println("Не удалось обработать событие: " + e.getMessage());
-            }
-
-            consumer.ack();
-        };
     }
 }

@@ -1,60 +1,111 @@
 package redmopag.notifier.google_meet_notifier;
 
+import com.google.api.gax.core.FixedCredentialsProvider;
+import com.google.apps.meet.v2.SpacesServiceSettings;
 import com.google.auth.Credentials;
-import redmopag.notifier.google_meet_notifier.services.EventSubscriber;
-import redmopag.notifier.google_meet_notifier.services.SubscriptionListener;
+import com.google.auth.oauth2.TokenStore;
+import redmopag.notifier.google_meet_notifier.googleapi.SpaceServiceApi;
+import redmopag.notifier.google_meet_notifier.services.*;
+import redmopag.notifier.google_meet_notifier.storage.TargetResource;
+import redmopag.notifier.google_meet_notifier.storage.TokenStoreImpl;
 import redmopag.notifier.google_meet_notifier.utils.CredentialsSettings;
-import redmopag.notifier.google_meet_notifier.utils.TargetResourceStore;
+import redmopag.notifier.google_meet_notifier.storage.TargetResourceStore;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
-import java.util.concurrent.ExecutionException;
 
 public class GoogleMeetApplication {
-    private static final CredentialsSettings CREDENTIALS_SETTINGS = new CredentialsSettings();
-
     private static final String TOPIC_NAME = "projects/meet-notifier-443718/topics/meet-events-topic";
     private static final String SUBSCRIPTION_ID = "meet-events-topic-sub";
     private static final String PROJECT_ID = "meet-notifier-443718";
+    private static final String TOKENS_DIRECTORY = "tokens";
+    private static final List<String> SCOPES = List.of(
+            "https://www.googleapis.com/auth/meetings.space.created",
+            "https://www.googleapis.com/auth/meetings.space.readonly",
+            "https://www.googleapis.com/auth/pubsub"
+    );
+
+    private static final String CHANGE_CONFERENCE = "c";
+    private static final String EXIT = "q";
 
     public static void main(String[] args) throws Exception {
-        Scanner scanner = new Scanner(System.in);
+        try (Scanner scanner = new Scanner(System.in)) {
+            Credentials credentials = getCredentials();
 
-        // Настройка доступа
-        Credentials credentials = CREDENTIALS_SETTINGS.getCredentials();
-        TargetResourceStore targetResourceStore = new TargetResourceStore(credentials);
-        EventSubscriber eventSubscriber = new EventSubscriber(credentials);
-        SubscriptionListener subscriptionListener = new SubscriptionListener(credentials);
+            // Получение конференции, события которой нужно слушать и обрабатывать
+            TargetResourceStore targetResourceStore = new TargetResourceStore(getSpaceServiceApi(credentials));
+            String targetResource = targetResourceStore.getTargetResource();
 
-        String targetResource = targetResourceStore.getTargetResource();
-        if (targetResource == null) {
-            System.out.print("Введите ссылку на конференцию: ");
-            targetResource = targetResourceStore.saveTargetResource(scanner.nextLine());
-        }
+            // Подписка на события
+            Subscriber eventSubscriber = new EventSubscriber(credentials);
 
-        String choice = null;
-        do {
-            createSubscription(targetResource, eventSubscriber);
-            subscriptionListener.listenSubscriptionAsync(PROJECT_ID, SUBSCRIPTION_ID);
+            // Настройка обработчика событий
+            SubscriptionListener subscriptionListener = getSubscriptionListener(credentials);
 
-            System.out.print("Нажмите c - изменить конференцию, q - выйти: ");
-            choice = scanner.next();
-            if (choice.equals("c")) {
-                System.out.println("Введите ссылку на новую конференцию: ");
+            // Если конференцию до этого не вводилась - вводим
+            if (targetResource == null) {
+                System.out.print("Введите ссылку на конференцию: ");
                 targetResource = targetResourceStore.saveTargetResource(scanner.nextLine());
-                subscriptionListener.stopListeningSubscription();
             }
-        } while (!choice.equals("q"));
+
+            String choice = null;
+            do {
+                eventSubscriber.subscribe(targetResource, TOPIC_NAME);
+                subscriptionListener.listenSubscriptionAsync(PROJECT_ID, SUBSCRIPTION_ID);
+
+                choice = getUserChoice();
+                if (choice.equals("c")) { // Возможность сменить конференцию
+                    System.out.println("Введите ссылку на новую конференцию: ");
+                    targetResource = targetResourceStore.saveTargetResource(scanner.nextLine());
+                    subscriptionListener.stopListeningSubscription();
+                }
+            } while (!choice.equals("q"));
+        }
     }
 
-    private static void createSubscription(String targetResource, EventSubscriber eventSubscriber) throws IOException {
+    private static Credentials getCredentials() {
+        TokenStore tokenStore = new TokenStoreImpl(TOKENS_DIRECTORY);
+        CredentialsSettings credentialsSettings = new CredentialsSettings(tokenStore, SCOPES);
         try {
-            eventSubscriber.subscribe(targetResource, TOPIC_NAME);
-            System.out.println("Subscription was created");
-        } catch (ExecutionException exception) {
-            System.out.println("Subscription already exists");
-        } catch (InterruptedException exception) {
-            throw new RuntimeException(exception);
+            return credentialsSettings.getCredentials();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static SpaceServiceApi getSpaceServiceApi(Credentials credentials) {
+        try {
+            SpacesServiceSettings settings = SpacesServiceSettings.newBuilder()
+                    .setCredentialsProvider(FixedCredentialsProvider.create(credentials))
+                    .build();
+            return new SpaceServiceApi(settings);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private static SubscriptionListener getSubscriptionListener(Credentials credentials) {
+        Map<String, EventHandler> handlers = new HashMap<>();
+        handlers.put("google.workspace.meet.participant.v2.joined", new ParticipantJoinedHandler(credentials));
+        return new SubscriptionListener(credentials, handlers);
+    }
+
+    private static String getUserChoice() {
+        try (Scanner scanner = new Scanner(System.in)) {
+            String choice;
+            do {
+                System.out.print("Нажмите " + CHANGE_CONFERENCE + " - изменить конференцию,"
+                        + EXIT + " - выйти: ");
+                choice = scanner.next();
+                if (!choice.equals("c") && !choice.equals("q")) {
+                    break;
+                }
+            } while (true);
+
+            return choice;
         }
     }
 }
